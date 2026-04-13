@@ -1,24 +1,28 @@
 import * as vscode from "vscode";
 import { DockerCli } from "./dockerCli";
 import { LogDocumentProvider } from "./logDocument";
-import { ComposeStackItem, ContainerItem, DockerTreeProvider } from "./tree";
+import { ComposeStackItem, ContainerItem, DockerTreeProvider, DockerTreeStore } from "./tree";
 
 const logScheme = "docker-container-log";
 
 export function activate(context: vscode.ExtensionContext): void {
   const docker = createDockerCli();
-  const treeProvider = new DockerTreeProvider(docker);
+  const treeStore = new DockerTreeStore(docker);
+  const runningTreeProvider = new DockerTreeProvider(treeStore, "running");
+  const inactiveTreeProvider = new DockerTreeProvider(treeStore, "inactive");
+  const treeProviders = [runningTreeProvider, inactiveTreeProvider];
   const logProvider = new LogDocumentProvider(docker);
 
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(logScheme, logProvider),
-    vscode.window.registerTreeDataProvider("dockerContainerStacks", treeProvider),
-    vscode.commands.registerCommand("dockerContainerStacks.refresh", () => runWithRefresh(treeProvider, () => treeProvider.refresh())),
-    vscode.commands.registerCommand("dockerContainerStacks.stack.stop", (item: ComposeStackItem) => runWithRefresh(treeProvider, () => docker.stopStack(item.stack))),
-    vscode.commands.registerCommand("dockerContainerStacks.stack.start", (item: ComposeStackItem) => runWithRefresh(treeProvider, () => docker.startStack(item.stack))),
-    vscode.commands.registerCommand("dockerContainerStacks.container.stop", (item: ContainerItem) => runWithRefresh(treeProvider, () => docker.stopContainer(item.container))),
-    vscode.commands.registerCommand("dockerContainerStacks.container.start", (item: ContainerItem) => runWithRefresh(treeProvider, () => docker.startContainer(item.container))),
-    vscode.commands.registerCommand("dockerContainerStacks.container.restart", (item: ContainerItem) => runWithRefresh(treeProvider, () => docker.restartContainer(item.container))),
+    vscode.window.registerTreeDataProvider("dockerContainerStacksRunning", runningTreeProvider),
+    vscode.window.registerTreeDataProvider("dockerContainerStacksInactive", inactiveTreeProvider),
+    vscode.commands.registerCommand("dockerContainerStacks.refresh", () => runWithRefresh(treeStore, treeProviders, async () => {})),
+    vscode.commands.registerCommand("dockerContainerStacks.stack.stop", (item: ComposeStackItem) => runWithRefresh(treeStore, treeProviders, () => docker.stopStack(item.stack))),
+    vscode.commands.registerCommand("dockerContainerStacks.stack.start", (item: ComposeStackItem) => runWithRefresh(treeStore, treeProviders, () => docker.startStack(item.stack))),
+    vscode.commands.registerCommand("dockerContainerStacks.container.stop", (item: ContainerItem) => runWithRefresh(treeStore, treeProviders, () => docker.stopContainer(item.container))),
+    vscode.commands.registerCommand("dockerContainerStacks.container.start", (item: ContainerItem) => runWithRefresh(treeStore, treeProviders, () => docker.startContainer(item.container))),
+    vscode.commands.registerCommand("dockerContainerStacks.container.restart", (item: ContainerItem) => runWithRefresh(treeStore, treeProviders, () => docker.restartContainer(item.container))),
     vscode.commands.registerCommand("dockerContainerStacks.openLogs", (item: ContainerItem) => openLogs(item, logProvider))
   );
 }
@@ -30,10 +34,17 @@ function createDockerCli(): DockerCli {
   return new DockerCli(dockerPath);
 }
 
-async function runWithRefresh(treeProvider: DockerTreeProvider, operation: () => Promise<void>): Promise<void> {
+async function runWithRefresh(
+  treeStore: DockerTreeStore,
+  treeProviders: readonly DockerTreeProvider[],
+  operation: () => Promise<void>
+): Promise<void> {
   try {
     await operation();
-    await treeProvider.refresh();
+    await treeStore.refresh();
+    for (const treeProvider of treeProviders) {
+      treeProvider.refresh();
+    }
   } catch (error) {
     void vscode.window.showErrorMessage(errorMessage(error));
   }

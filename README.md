@@ -12,7 +12,8 @@ That means it runs next to the VS Code client instead of inside a remote workspa
 
 ## Features
 
-- Group containers by Docker Compose project.
+- Show running containers and exited/created containers in separate views.
+- Group containers by Docker Compose project within each view.
 - Stop or start a Compose stack from the tree item context menu.
 - Stop, start, or restart individual containers.
 - Open container logs in a read-only editor document.

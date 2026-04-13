@@ -14,7 +14,8 @@
     "ui"
   ],
   "activationEvents": [
-    "onView:dockerContainerStacks",
+    "onView:dockerContainerStacksRunning",
+    "onView:dockerContainerStacksInactive",
     "onCommand:dockerContainerStacks.refresh",
     "onCommand:dockerContainerStacks.openLogs"
   ],
@@ -57,11 +58,24 @@
         "icon": "$(output)"
       }
     ],
-    "views": {
-      "explorer": [
+    "viewsContainers": {
+      "activitybar": [
         {
-          "id": "dockerContainerStacks",
-          "name": "Docker Containers"
+          "id": "dockerContainerStacksPanel",
+          "title": "Docker Containers",
+          "icon": "media/docker.svg"
+        }
+      ]
+    },
+    "views": {
+      "dockerContainerStacksPanel": [
+        {
+          "id": "dockerContainerStacksRunning",
+          "name": "Running"
+        },
+        {
+          "id": "dockerContainerStacksInactive",
+          "name": "Exited / Created"
         }
       ]
     },
@@ -69,40 +83,55 @@
       "view/title": [
         {
           "command": "dockerContainerStacks.refresh",
-          "when": "view == dockerContainerStacks",
+          "when": "view == dockerContainerStacksRunning",
+          "group": "navigation"
+        },
+        {
+          "command": "dockerContainerStacks.refresh",
+          "when": "view == dockerContainerStacksInactive",
           "group": "navigation"
         }
       ],
       "view/item/context": [
         {
           "command": "dockerContainerStacks.stack.stop",
-          "when": "view == dockerContainerStacks && viewItem == composeStack",
+          "when": "view == dockerContainerStacksRunning && viewItem == composeStackRunning",
           "group": "inline@1"
         },
         {
           "command": "dockerContainerStacks.stack.start",
-          "when": "view == dockerContainerStacks && viewItem == composeStack",
+          "when": "view == dockerContainerStacksInactive && viewItem == composeStackInactive",
           "group": "inline@2"
         },
         {
           "command": "dockerContainerStacks.container.stop",
-          "when": "view == dockerContainerStacks && viewItem == dockerContainer",
+          "when": "view == dockerContainerStacksRunning && viewItem == dockerContainerRunning",
           "group": "inline@1"
         },
         {
           "command": "dockerContainerStacks.container.restart",
-          "when": "view == dockerContainerStacks && viewItem == dockerContainer",
+          "when": "view == dockerContainerStacksRunning && viewItem == dockerContainerRunning",
           "group": "inline@2"
         },
         {
           "command": "dockerContainerStacks.openLogs",
-          "when": "view == dockerContainerStacks && viewItem == dockerContainer",
+          "when": "view == dockerContainerStacksRunning && viewItem == dockerContainerRunning",
           "group": "inline@3"
         },
         {
           "command": "dockerContainerStacks.container.start",
-          "when": "view == dockerContainerStacks && viewItem == dockerContainer",
-          "group": "container@1"
+          "when": "view == dockerContainerStacksInactive && viewItem == dockerContainerInactive",
+          "group": "inline@1"
+        },
+        {
+          "command": "dockerContainerStacks.container.restart",
+          "when": "view == dockerContainerStacksInactive && viewItem == dockerContainerInactive",
+          "group": "inline@2"
+        },
+        {
+          "command": "dockerContainerStacks.openLogs",
+          "when": "view == dockerContainerStacksInactive && viewItem == dockerContainerInactive",
+          "group": "inline@3"
         }
       ],
       "commandPalette": [
