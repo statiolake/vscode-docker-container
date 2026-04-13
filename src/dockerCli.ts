@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -22,6 +22,10 @@ export interface ComposeStack {
   readonly workingDir?: string;
   readonly configFiles: readonly string[];
   readonly containers: readonly DockerContainer[];
+}
+
+export interface DockerLogStream {
+  dispose(): void;
 }
 
 interface DockerInspectContainer {
@@ -115,6 +119,27 @@ export class DockerCli {
 
     const result = await this.exec(args);
     return result.stdout + result.stderr;
+  }
+
+  public streamLogs(containerId: string, tail: number, onData: (chunk: string) => void, onError: (error: string) => void): DockerLogStream {
+    const args = ["logs", "--follow"];
+    if (tail > 0) {
+      args.push("--tail", String(tail));
+    }
+    args.push(containerId);
+
+    const child = spawn(this.dockerPath, args);
+    child.stdout.on("data", (chunk: Buffer) => onData(chunk.toString()));
+    child.stderr.on("data", (chunk: Buffer) => onData(chunk.toString()));
+    child.on("error", (error) => onError(error.message));
+
+    return {
+      dispose: () => {
+        if (!child.killed) {
+          child.kill();
+        }
+      }
+    };
   }
 
   private async containerIds(): Promise<readonly string[]> {

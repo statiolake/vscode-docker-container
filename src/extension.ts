@@ -14,7 +14,13 @@ export function activate(context: vscode.ExtensionContext): void {
   const logProvider = new LogDocumentProvider(docker);
 
   context.subscriptions.push(
+    logProvider,
     vscode.workspace.registerTextDocumentContentProvider(logScheme, logProvider),
+    vscode.workspace.onDidCloseTextDocument((document) => {
+      if (document.uri.scheme === logScheme) {
+        logProvider.close(document.uri);
+      }
+    }),
     vscode.window.registerTreeDataProvider("dockerContainerStacksRunning", runningTreeProvider),
     vscode.window.registerTreeDataProvider("dockerContainerStacksInactive", inactiveTreeProvider),
     vscode.commands.registerCommand("dockerContainerStacks.refresh", () => runWithRefresh(treeStore, treeProviders, async () => {})),
@@ -25,7 +31,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("dockerContainerStacks.container.start", (item: ContainerItem) => runWithRefresh(treeStore, treeProviders, () => docker.startContainer(item.container))),
     vscode.commands.registerCommand("dockerContainerStacks.container.restart", (item: ContainerItem) => runWithBusy(treeStore, treeProviders, containerBusyKey(item.container), () => docker.restartContainer(item.container))),
     vscode.commands.registerCommand("dockerContainerStacks.container.rebuild", (item: ContainerItem) => runWithBusy(treeStore, treeProviders, containerBusyKey(item.container), () => docker.rebuildContainer(item.container))),
-    vscode.commands.registerCommand("dockerContainerStacks.openLogs", (item: ContainerItem) => openLogs(item, logProvider))
+    vscode.commands.registerCommand("dockerContainerStacks.openLogs", (item: ContainerItem) => openLogs(item))
   );
 }
 
@@ -78,16 +84,15 @@ function refreshProviders(treeProviders: readonly DockerTreeProvider[]): void {
   }
 }
 
-async function openLogs(item: ContainerItem, logProvider: LogDocumentProvider): Promise<void> {
+async function openLogs(item: ContainerItem): Promise<void> {
   const uri = vscode.Uri.from({
     scheme: logScheme,
     path: `/${encodeURIComponent(item.container.name)}.log`,
     query: item.container.id
   });
 
-  logProvider.refresh(uri);
   const document = await vscode.workspace.openTextDocument(uri);
-  await vscode.window.showTextDocument(document, { preview: false });
+  await vscode.window.showTextDocument(document, { preview: true });
 }
 
 function errorMessage(error: unknown): string {
