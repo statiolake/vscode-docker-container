@@ -1,0 +1,162 @@
+{
+  "name": "vscode-docker-container",
+  "displayName": "Docker Container Stacks",
+  "description": "Manage Docker Compose stacks and containers from the VS Code UI side.",
+  "version": "0.0.1",
+  "publisher": "statiolake",
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "activationEvents": [
+    "onView:dockerContainerStacks",
+    "onCommand:dockerContainerStacks.refresh",
+    "onCommand:dockerContainerStacks.openLogs"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "dockerContainerStacks.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "dockerContainerStacks.stack.stop",
+        "title": "Stop Compose Stack",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "dockerContainerStacks.stack.start",
+        "title": "Start Compose Stack",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "dockerContainerStacks.container.stop",
+        "title": "Stop Container",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "dockerContainerStacks.container.start",
+        "title": "Start Container",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "dockerContainerStacks.container.restart",
+        "title": "Restart Container",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "dockerContainerStacks.openLogs",
+        "title": "Open Logs",
+        "icon": "$(output)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "dockerContainerStacks",
+          "name": "Docker Containers"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "dockerContainerStacks.refresh",
+          "when": "view == dockerContainerStacks",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "dockerContainerStacks.stack.stop",
+          "when": "view == dockerContainerStacks && viewItem == composeStack",
+          "group": "inline@1"
+        },
+        {
+          "command": "dockerContainerStacks.stack.start",
+          "when": "view == dockerContainerStacks && viewItem == composeStack",
+          "group": "inline@2"
+        },
+        {
+          "command": "dockerContainerStacks.container.stop",
+          "when": "view == dockerContainerStacks && viewItem == dockerContainer",
+          "group": "inline@1"
+        },
+        {
+          "command": "dockerContainerStacks.container.restart",
+          "when": "view == dockerContainerStacks && viewItem == dockerContainer",
+          "group": "inline@2"
+        },
+        {
+          "command": "dockerContainerStacks.openLogs",
+          "when": "view == dockerContainerStacks && viewItem == dockerContainer",
+          "group": "inline@3"
+        },
+        {
+          "command": "dockerContainerStacks.container.start",
+          "when": "view == dockerContainerStacks && viewItem == dockerContainer",
+          "group": "container@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "dockerContainerStacks.stack.stop",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.stack.start",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.container.stop",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.container.start",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.container.restart",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.openLogs",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Docker Container Stacks",
+      "properties": {
+        "dockerContainerStacks.dockerPath": {
+          "type": "string",
+          "default": "docker",
+          "description": "Path to the Docker CLI used by this UI extension."
+        },
+        "dockerContainerStacks.logTail": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 0,
+          "description": "Number of log lines to load when opening a container log editor. Set to 0 for all logs."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.0",
+    "@types/vscode": "^1.105.0",
+    "typescript": "^6.0.0"
+  }
+}
