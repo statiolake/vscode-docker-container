@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { DockerCli } from "./dockerCli";
 import { LogDocumentProvider } from "./logDocument";
-import { ComposeStackItem, ContainerItem, DockerTreeProvider, DockerTreeStore } from "./tree";
+import { ComposeStackItem, ContainerItem, DockerTreeProvider, DockerTreeStore, containerBusyKey, stackBusyKey } from "./tree";
 
 const logScheme = "docker-container-log";
 
@@ -20,9 +20,11 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("dockerContainerStacks.refresh", () => runWithRefresh(treeStore, treeProviders, async () => {})),
     vscode.commands.registerCommand("dockerContainerStacks.stack.stop", (item: ComposeStackItem) => runWithRefresh(treeStore, treeProviders, () => docker.stopStack(item.stack))),
     vscode.commands.registerCommand("dockerContainerStacks.stack.start", (item: ComposeStackItem) => runWithRefresh(treeStore, treeProviders, () => docker.startStack(item.stack))),
+    vscode.commands.registerCommand("dockerContainerStacks.stack.rebuild", (item: ComposeStackItem) => runWithBusy(treeStore, treeProviders, stackBusyKey(item.stack), () => docker.rebuildStack(item.stack))),
     vscode.commands.registerCommand("dockerContainerStacks.container.stop", (item: ContainerItem) => runWithRefresh(treeStore, treeProviders, () => docker.stopContainer(item.container))),
     vscode.commands.registerCommand("dockerContainerStacks.container.start", (item: ContainerItem) => runWithRefresh(treeStore, treeProviders, () => docker.startContainer(item.container))),
-    vscode.commands.registerCommand("dockerContainerStacks.container.restart", (item: ContainerItem) => runWithRefresh(treeStore, treeProviders, () => docker.restartContainer(item.container))),
+    vscode.commands.registerCommand("dockerContainerStacks.container.restart", (item: ContainerItem) => runWithBusy(treeStore, treeProviders, containerBusyKey(item.container), () => docker.restartContainer(item.container))),
+    vscode.commands.registerCommand("dockerContainerStacks.container.rebuild", (item: ContainerItem) => runWithBusy(treeStore, treeProviders, containerBusyKey(item.container), () => docker.rebuildContainer(item.container))),
     vscode.commands.registerCommand("dockerContainerStacks.openLogs", (item: ContainerItem) => openLogs(item, logProvider))
   );
 }
@@ -47,6 +49,32 @@ async function runWithRefresh(
     }
   } catch (error) {
     void vscode.window.showErrorMessage(errorMessage(error));
+  }
+}
+
+async function runWithBusy(
+  treeStore: DockerTreeStore,
+  treeProviders: readonly DockerTreeProvider[],
+  busyKey: string,
+  operation: () => Promise<void>
+): Promise<void> {
+  treeStore.setBusy(busyKey, true);
+  refreshProviders(treeProviders);
+
+  try {
+    await operation();
+    await treeStore.refresh();
+  } catch (error) {
+    void vscode.window.showErrorMessage(errorMessage(error));
+  } finally {
+    treeStore.setBusy(busyKey, false);
+    refreshProviders(treeProviders);
+  }
+}
+
+function refreshProviders(treeProviders: readonly DockerTreeProvider[]): void {
+  for (const treeProvider of treeProviders) {
+    treeProvider.refresh();
   }
 }
 

@@ -16,6 +16,7 @@ That means it runs next to the VS Code client instead of inside a remote workspa
 - Group containers by Docker Compose project within each view.
 - Stop or start a Compose stack from the tree item context menu.
 - Stop, start, or restart individual containers.
+- Rebuild Compose stacks or Compose services when Docker Compose metadata is available.
 - Open container logs in a read-only editor document.
 
 ## Remote-Side Containers

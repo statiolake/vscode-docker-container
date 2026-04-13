@@ -82,6 +82,11 @@ export class DockerCli {
     await this.run("stop", stack.containers.map((container) => container.id));
   }
 
+  public async rebuildStack(stack: ComposeStack): Promise<void> {
+    assertCanRunCompose(stack);
+    await this.runCompose(stack, ["up", "--build", "--detach"]);
+  }
+
   public async startContainer(container: DockerContainer): Promise<void> {
     await this.run("start", [container.id]);
   }
@@ -92,6 +97,13 @@ export class DockerCli {
 
   public async restartContainer(container: DockerContainer): Promise<void> {
     await this.run("restart", [container.id]);
+  }
+
+  public async rebuildContainer(container: DockerContainer): Promise<void> {
+    const service = composeService(container);
+    const stack = stackForComposeContainer(container);
+    assertCanRunCompose(stack);
+    await this.runCompose(stack, ["up", "--build", "--detach", service]);
   }
 
   public async logs(containerId: string, tail: number): Promise<string> {
@@ -208,6 +220,31 @@ function splitComposeConfigFiles(value: string | undefined): readonly string[] {
 
 function canRunCompose(stack: ComposeStack): boolean {
   return stack.isCompose && stack.configFiles.length > 0;
+}
+
+function assertCanRunCompose(stack: ComposeStack): void {
+  if (!canRunCompose(stack)) {
+    throw new Error("This container does not include enough Docker Compose metadata to rebuild it.");
+  }
+}
+
+function stackForComposeContainer(container: DockerContainer): ComposeStack {
+  return {
+    id: container.composeProject ?? "",
+    name: container.composeProject ?? "",
+    isCompose: Boolean(container.composeProject && container.composeService),
+    workingDir: container.composeWorkingDir,
+    configFiles: container.composeConfigFiles ?? [],
+    containers: [container]
+  };
+}
+
+function composeService(container: DockerContainer): string {
+  if (!container.composeService) {
+    throw new Error("This container is not part of a Docker Compose service.");
+  }
+
+  return container.composeService;
 }
 
 function isExecError(error: unknown): error is { readonly stdout?: string; readonly stderr?: string; readonly message: string } {

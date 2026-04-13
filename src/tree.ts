@@ -6,6 +6,7 @@ export type ContainerStateFilter = "running" | "inactive";
 
 export class DockerTreeStore {
   private stacks: readonly ComposeStack[] = [];
+  private readonly busyItems = new Set<string>();
   private loaded = false;
 
   public constructor(private readonly docker: DockerCli) {}
@@ -35,6 +36,19 @@ export class DockerTreeStore {
       }];
     });
   }
+
+  public setBusy(key: string, busy: boolean): void {
+    if (busy) {
+      this.busyItems.add(key);
+      return;
+    }
+
+    this.busyItems.delete(key);
+  }
+
+  public isBusy(key: string): boolean {
+    return this.busyItems.has(key);
+  }
 }
 
 export class DockerTreeProvider implements vscode.TreeDataProvider<DockerTreeItem> {
@@ -57,11 +71,11 @@ export class DockerTreeProvider implements vscode.TreeDataProvider<DockerTreeIte
   public async getChildren(element?: DockerTreeItem): Promise<DockerTreeItem[]> {
     if (!element) {
       await this.store.ensureLoaded();
-      return this.store.stacksFor(this.filter).map((stack) => new ComposeStackItem(stack, this.filter));
+      return this.store.stacksFor(this.filter).map((stack) => new ComposeStackItem(stack, this.filter, this.store.isBusy(stackBusyKey(stack))));
     }
 
     if (element instanceof ComposeStackItem) {
-      return element.stack.containers.map((container) => new ContainerItem(container, this.filter));
+      return element.stack.containers.map((container) => new ContainerItem(container, this.filter, this.store.isBusy(containerBusyKey(container))));
     }
 
     return [];
@@ -73,14 +87,16 @@ export class ComposeStackItem extends vscode.TreeItem {
 
   public constructor(
     public readonly stack: ComposeStack,
-    filter: ContainerStateFilter
+    filter: ContainerStateFilter,
+    isBusy: boolean
   ) {
     super(stack.name, vscode.TreeItemCollapsibleState.Expanded);
     this.id = `stack:${stack.id}`;
     this.description = stack.isCompose ? `${stack.containers.length} containers` : undefined;
     this.tooltip = stackTooltip(stack);
-    this.iconPath = new vscode.ThemeIcon(stack.isCompose ? "layers" : "server");
-    this.contextValue = filter === "running" ? "composeStackRunning" : "composeStackInactive";
+    this.iconPath = new vscode.ThemeIcon(isBusy ? "loading~spin" : stack.isCompose ? "layers" : "server");
+    const stackType = canRunCompose(stack) ? "composeStack" : "standaloneStack";
+    this.contextValue = `${stackType}.${filter}`;
   }
 }
 
@@ -89,14 +105,16 @@ export class ContainerItem extends vscode.TreeItem {
 
   public constructor(
     public readonly container: DockerContainer,
-    filter: ContainerStateFilter
+    filter: ContainerStateFilter,
+    isBusy: boolean
   ) {
     super(container.composeService ?? container.name, vscode.TreeItemCollapsibleState.None);
     this.id = `container:${container.id}`;
     this.description = container.image;
     this.tooltip = containerTooltip(container);
-    this.iconPath = new vscode.ThemeIcon(containerIcon(container));
-    this.contextValue = filter === "running" ? "dockerContainerRunning" : "dockerContainerInactive";
+    this.iconPath = new vscode.ThemeIcon(isBusy ? "loading~spin" : containerIcon(container));
+    const containerType = canRunComposeContainer(container) ? "composeContainer" : "dockerContainer";
+    this.contextValue = `${containerType}.${filter}`;
     this.command = {
       command: "dockerContainerStacks.openLogs",
       title: "Open Logs",
@@ -137,4 +155,20 @@ function matchesFilter(container: DockerContainer, filter: ContainerStateFilter)
   }
 
   return container.state === "exited" || container.state === "created";
+}
+
+function canRunCompose(stack: ComposeStack): boolean {
+  return stack.isCompose && stack.configFiles.length > 0;
+}
+
+function canRunComposeContainer(container: DockerContainer): boolean {
+  return Boolean(container.composeProject && container.composeService && container.composeConfigFiles && container.composeConfigFiles.length > 0);
+}
+
+export function stackBusyKey(stack: ComposeStack): string {
+  return `stack:${stack.name}`;
+}
+
+export function containerBusyKey(container: DockerContainer): string {
+  return `container:${container.id}`;
 }

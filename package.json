@@ -17,6 +17,8 @@
     "onView:dockerContainerStacksRunning",
     "onView:dockerContainerStacksInactive",
     "onCommand:dockerContainerStacks.refresh",
+    "onCommand:dockerContainerStacks.stack.rebuild",
+    "onCommand:dockerContainerStacks.container.rebuild",
     "onCommand:dockerContainerStacks.openLogs"
   ],
   "main": "./out/extension.js",
@@ -29,28 +31,38 @@
       },
       {
         "command": "dockerContainerStacks.stack.stop",
-        "title": "Stop Compose Stack",
+        "title": "Stop",
         "icon": "$(debug-stop)"
       },
       {
         "command": "dockerContainerStacks.stack.start",
-        "title": "Start Compose Stack",
+        "title": "Start",
         "icon": "$(debug-start)"
       },
       {
+        "command": "dockerContainerStacks.stack.rebuild",
+        "title": "Rebuild",
+        "icon": "$(tools)"
+      },
+      {
         "command": "dockerContainerStacks.container.stop",
-        "title": "Stop Container",
+        "title": "Stop",
         "icon": "$(debug-stop)"
       },
       {
         "command": "dockerContainerStacks.container.start",
-        "title": "Start Container",
+        "title": "Start",
         "icon": "$(debug-start)"
       },
       {
         "command": "dockerContainerStacks.container.restart",
-        "title": "Restart Container",
+        "title": "Restart",
         "icon": "$(sync)"
+      },
+      {
+        "command": "dockerContainerStacks.container.rebuild",
+        "title": "Rebuild",
+        "icon": "$(tools)"
       },
       {
         "command": "dockerContainerStacks.openLogs",
@@ -95,43 +107,63 @@
       "view/item/context": [
         {
           "command": "dockerContainerStacks.stack.stop",
-          "when": "view == dockerContainerStacksRunning && viewItem == composeStackRunning",
-          "group": "inline@1"
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeStack|standaloneStack)\\.running$/",
+          "group": "stack@1"
         },
         {
           "command": "dockerContainerStacks.stack.start",
-          "when": "view == dockerContainerStacksInactive && viewItem == composeStackInactive",
-          "group": "inline@2"
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeStack|standaloneStack)\\.inactive$/",
+          "group": "stack@1"
+        },
+        {
+          "command": "dockerContainerStacks.stack.rebuild",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^composeStack\\.running$/",
+          "group": "stack@2"
+        },
+        {
+          "command": "dockerContainerStacks.stack.rebuild",
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^composeStack\\.inactive$/",
+          "group": "stack@2"
         },
         {
           "command": "dockerContainerStacks.container.stop",
-          "when": "view == dockerContainerStacksRunning && viewItem == dockerContainerRunning",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainer|dockerContainer)\\.running$/",
+          "group": "container@1"
+        },
+        {
+          "command": "dockerContainerStacks.container.restart",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainer|dockerContainer)\\.running$/",
           "group": "inline@1"
         },
         {
           "command": "dockerContainerStacks.container.restart",
-          "when": "view == dockerContainerStacksRunning && viewItem == dockerContainerRunning",
-          "group": "inline@2"
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainer|dockerContainer)\\.running$/",
+          "group": "container@2"
         },
         {
-          "command": "dockerContainerStacks.openLogs",
-          "when": "view == dockerContainerStacksRunning && viewItem == dockerContainerRunning",
-          "group": "inline@3"
+          "command": "dockerContainerStacks.container.rebuild",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^composeContainer\\.running$/",
+          "group": "container@3"
         },
         {
           "command": "dockerContainerStacks.container.start",
-          "when": "view == dockerContainerStacksInactive && viewItem == dockerContainerInactive",
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainer|dockerContainer)\\.inactive$/",
+          "group": "container@1"
+        },
+        {
+          "command": "dockerContainerStacks.container.restart",
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainer|dockerContainer)\\.inactive$/",
           "group": "inline@1"
         },
         {
           "command": "dockerContainerStacks.container.restart",
-          "when": "view == dockerContainerStacksInactive && viewItem == dockerContainerInactive",
-          "group": "inline@2"
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainer|dockerContainer)\\.inactive$/",
+          "group": "container@2"
         },
         {
-          "command": "dockerContainerStacks.openLogs",
-          "when": "view == dockerContainerStacksInactive && viewItem == dockerContainerInactive",
-          "group": "inline@3"
+          "command": "dockerContainerStacks.container.rebuild",
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^composeContainer\\.inactive$/",
+          "group": "container@3"
         }
       ],
       "commandPalette": [
@@ -144,6 +176,10 @@
           "when": "false"
         },
         {
+          "command": "dockerContainerStacks.stack.rebuild",
+          "when": "false"
+        },
+        {
           "command": "dockerContainerStacks.container.stop",
           "when": "false"
         },
@@ -153,6 +189,10 @@
         },
         {
           "command": "dockerContainerStacks.container.restart",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.container.rebuild",
           "when": "false"
         },
         {
