@@ -93,7 +93,7 @@ export class ContainerItem extends vscode.TreeItem {
   ) {
     super(container.composeService ?? container.name, vscode.TreeItemCollapsibleState.None);
     this.id = `container:${container.id}`;
-    this.description = `${container.state} ${container.image}`.trim();
+    this.description = container.image;
     this.tooltip = containerTooltip(container);
     this.iconPath = new vscode.ThemeIcon(containerIcon(container));
     this.contextValue = filter === "running" ? "dockerContainerRunning" : "dockerContainerInactive";
@@ -120,8 +120,7 @@ function containerTooltip(container: DockerContainer): string {
     `Name: ${container.name}`,
     `ID: ${container.id}`,
     container.composeService ? `Service: ${container.composeService}` : undefined,
-    `Image: ${container.image}`,
-    `State: ${container.state}`
+    `Image: ${container.image}`
   ].filter(Boolean).join("\n");
 }
 
