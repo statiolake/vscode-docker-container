@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { ComposeStack, DockerCli, DockerContainer } from "./dockerCli";
+import { ComposeStack, DockerCli, DockerContainer, canBuildCompose, canBuildComposeContainer, canRunComposeProject } from "./dockerCli";
 
 export type DockerTreeItem = ComposeStackItem | ContainerItem;
 export type ContainerStateFilter = "running" | "inactive";
@@ -95,7 +95,7 @@ export class ComposeStackItem extends vscode.TreeItem {
     this.description = stack.isCompose ? `${stack.containers.length} containers` : undefined;
     this.tooltip = stackTooltip(stack);
     this.iconPath = new vscode.ThemeIcon(isBusy ? "loading~spin" : stack.isCompose ? "layers" : "server");
-    const stackType = canRunCompose(stack) ? "composeStack" : "standaloneStack";
+    const stackType = stackContext(stack);
     this.contextValue = `${stackType}.${filter}`;
   }
 }
@@ -113,7 +113,7 @@ export class ContainerItem extends vscode.TreeItem {
     this.description = container.image;
     this.tooltip = containerTooltip(container);
     this.iconPath = new vscode.ThemeIcon(isBusy ? "loading~spin" : containerIcon(container));
-    const containerType = canRunComposeContainer(container) ? "composeContainer" : "dockerContainer";
+    const containerType = containerContext(container);
     this.contextValue = `${containerType}.${filter}`;
     this.command = {
       command: "dockerContainerStacks.openLogs",
@@ -157,12 +157,24 @@ function matchesFilter(container: DockerContainer, filter: ContainerStateFilter)
   return container.state === "exited" || container.state === "created";
 }
 
-function canRunCompose(stack: ComposeStack): boolean {
-  return stack.isCompose && stack.configFiles.length > 0;
+function stackContext(stack: ComposeStack): string {
+  if (canBuildCompose(stack)) {
+    return "composeStackBuildable";
+  }
+  if (canRunComposeProject(stack)) {
+    return "composeStack";
+  }
+  return "standaloneStack";
 }
 
-function canRunComposeContainer(container: DockerContainer): boolean {
-  return Boolean(container.composeProject && container.composeService && container.composeConfigFiles && container.composeConfigFiles.length > 0);
+function containerContext(container: DockerContainer): string {
+  if (canBuildComposeContainer(container)) {
+    return "composeContainerBuildable";
+  }
+  if (container.composeService) {
+    return "composeContainer";
+  }
+  return "dockerContainer";
 }
 
 export function stackBusyKey(stack: ComposeStack): string {

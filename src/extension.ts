@@ -27,15 +27,27 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("dockerContainerStacks.stack.stop", (item: ComposeStackItem) => runWithRefresh(treeStore, treeProviders, () => docker.stopStack(item.stack))),
     vscode.commands.registerCommand("dockerContainerStacks.stack.start", (item: ComposeStackItem) => runWithRefresh(treeStore, treeProviders, () => docker.startStack(item.stack))),
     vscode.commands.registerCommand("dockerContainerStacks.stack.rebuild", (item: ComposeStackItem) => runWithBusy(treeStore, treeProviders, stackBusyKey(item.stack), () => docker.rebuildStack(item.stack))),
+    vscode.commands.registerCommand("dockerContainerStacks.stack.down", (item: ComposeStackItem) => confirmAndRun("Down", `Run docker compose down for ${item.stack.name}?`, () => runWithBusy(treeStore, treeProviders, stackBusyKey(item.stack), () => docker.downStack(item.stack)))),
+    vscode.commands.registerCommand("dockerContainerStacks.stack.downVolumes", (item: ComposeStackItem) => confirmAndRun("Down -v", `Run docker compose down -v for ${item.stack.name}? This removes named volumes declared by the project.`, () => runWithBusy(treeStore, treeProviders, stackBusyKey(item.stack), () => docker.downStackWithVolumes(item.stack)))),
     vscode.commands.registerCommand("dockerContainerStacks.container.stop", (item: ContainerItem) => runWithRefresh(treeStore, treeProviders, () => docker.stopContainer(item.container))),
     vscode.commands.registerCommand("dockerContainerStacks.container.start", (item: ContainerItem) => runWithRefresh(treeStore, treeProviders, () => docker.startContainer(item.container))),
     vscode.commands.registerCommand("dockerContainerStacks.container.restart", (item: ContainerItem) => runWithBusy(treeStore, treeProviders, containerBusyKey(item.container), () => docker.restartContainer(item.container))),
     vscode.commands.registerCommand("dockerContainerStacks.container.rebuild", (item: ContainerItem) => runWithBusy(treeStore, treeProviders, containerBusyKey(item.container), () => docker.rebuildContainer(item.container))),
+    vscode.commands.registerCommand("dockerContainerStacks.container.remove", (item: ContainerItem) => confirmAndRun("Remove", `Remove container ${item.container.name}?`, () => runWithBusy(treeStore, treeProviders, containerBusyKey(item.container), () => docker.removeContainer(item.container)))),
     vscode.commands.registerCommand("dockerContainerStacks.openLogs", (item: ContainerItem) => openLogs(item))
   );
 }
 
 export function deactivate(): void {}
+
+async function confirmAndRun(label: string, message: string, operation: () => Promise<void>): Promise<void> {
+  const choice = await vscode.window.showWarningMessage(message, { modal: true }, label);
+  if (choice !== label) {
+    return;
+  }
+
+  await operation();
+}
 
 function createDockerCli(): DockerCli {
   const dockerPath = vscode.workspace.getConfiguration("dockerContainerStacks").get("dockerPath", "docker");

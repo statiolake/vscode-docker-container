@@ -18,7 +18,10 @@
     "onView:dockerContainerStacksInactive",
     "onCommand:dockerContainerStacks.refresh",
     "onCommand:dockerContainerStacks.stack.rebuild",
+    "onCommand:dockerContainerStacks.stack.down",
+    "onCommand:dockerContainerStacks.stack.downVolumes",
     "onCommand:dockerContainerStacks.container.rebuild",
+    "onCommand:dockerContainerStacks.container.remove",
     "onCommand:dockerContainerStacks.openLogs"
   ],
   "main": "./out/extension.js",
@@ -45,6 +48,22 @@
         "icon": "$(tools)"
       },
       {
+        "command": "dockerContainerStacks.stack.rebuildUnavailable",
+        "title": "Rebuild (compose file not found)",
+        "enablement": "false",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "dockerContainerStacks.stack.down",
+        "title": "Down",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "dockerContainerStacks.stack.downVolumes",
+        "title": "Down -v",
+        "icon": "$(trash)"
+      },
+      {
         "command": "dockerContainerStacks.container.stop",
         "title": "Stop",
         "icon": "$(debug-stop)"
@@ -63,6 +82,17 @@
         "command": "dockerContainerStacks.container.rebuild",
         "title": "Rebuild",
         "icon": "$(tools)"
+      },
+      {
+        "command": "dockerContainerStacks.container.rebuildUnavailable",
+        "title": "Rebuild (compose file not found)",
+        "enablement": "false",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "dockerContainerStacks.container.remove",
+        "title": "Remove",
+        "icon": "$(trash)"
       },
       {
         "command": "dockerContainerStacks.openLogs",
@@ -107,63 +137,98 @@
       "view/item/context": [
         {
           "command": "dockerContainerStacks.stack.stop",
-          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeStack|standaloneStack)\\.running$/",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeStackBuildable|composeStack|standaloneStack)\\.running$/",
           "group": "stack@1"
         },
         {
           "command": "dockerContainerStacks.stack.start",
-          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeStack|standaloneStack)\\.inactive$/",
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeStackBuildable|composeStack|standaloneStack)\\.inactive$/",
           "group": "stack@1"
         },
         {
           "command": "dockerContainerStacks.stack.rebuild",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^composeStackBuildable\\.running$/",
+          "group": "stack@2"
+        },
+        {
+          "command": "dockerContainerStacks.stack.rebuildUnavailable",
           "when": "view == dockerContainerStacksRunning && viewItem =~ /^composeStack\\.running$/",
           "group": "stack@2"
         },
         {
           "command": "dockerContainerStacks.stack.rebuild",
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^composeStackBuildable\\.inactive$/",
+          "group": "stack@2"
+        },
+        {
+          "command": "dockerContainerStacks.stack.rebuildUnavailable",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^composeStack\\.inactive$/",
           "group": "stack@2"
         },
         {
+          "command": "dockerContainerStacks.stack.down",
+          "when": "viewItem =~ /^(composeStackBuildable|composeStack)\\.(running|inactive)$/",
+          "group": "stack@3"
+        },
+        {
+          "command": "dockerContainerStacks.stack.downVolumes",
+          "when": "viewItem =~ /^(composeStackBuildable|composeStack)\\.(running|inactive)$/",
+          "group": "stack@4"
+        },
+        {
           "command": "dockerContainerStacks.container.stop",
-          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainer|dockerContainer)\\.running$/",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.running$/",
           "group": "container@1"
         },
         {
           "command": "dockerContainerStacks.container.restart",
-          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainer|dockerContainer)\\.running$/",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.running$/",
           "group": "inline@1"
         },
         {
           "command": "dockerContainerStacks.container.restart",
-          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainer|dockerContainer)\\.running$/",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.running$/",
           "group": "container@2"
         },
         {
           "command": "dockerContainerStacks.container.rebuild",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^composeContainerBuildable\\.running$/",
+          "group": "container@3"
+        },
+        {
+          "command": "dockerContainerStacks.container.rebuildUnavailable",
           "when": "view == dockerContainerStacksRunning && viewItem =~ /^composeContainer\\.running$/",
           "group": "container@3"
         },
         {
           "command": "dockerContainerStacks.container.start",
-          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainer|dockerContainer)\\.inactive$/",
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.inactive$/",
           "group": "container@1"
         },
         {
           "command": "dockerContainerStacks.container.restart",
-          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainer|dockerContainer)\\.inactive$/",
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.inactive$/",
           "group": "inline@1"
         },
         {
           "command": "dockerContainerStacks.container.restart",
-          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainer|dockerContainer)\\.inactive$/",
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.inactive$/",
           "group": "container@2"
         },
         {
           "command": "dockerContainerStacks.container.rebuild",
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^composeContainerBuildable\\.inactive$/",
+          "group": "container@3"
+        },
+        {
+          "command": "dockerContainerStacks.container.rebuildUnavailable",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^composeContainer\\.inactive$/",
           "group": "container@3"
+        },
+        {
+          "command": "dockerContainerStacks.container.remove",
+          "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.inactive$/",
+          "group": "container@4"
         }
       ],
       "commandPalette": [
@@ -180,6 +245,18 @@
           "when": "false"
         },
         {
+          "command": "dockerContainerStacks.stack.rebuildUnavailable",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.stack.down",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.stack.downVolumes",
+          "when": "false"
+        },
+        {
           "command": "dockerContainerStacks.container.stop",
           "when": "false"
         },
@@ -193,6 +270,14 @@
         },
         {
           "command": "dockerContainerStacks.container.rebuild",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.container.rebuildUnavailable",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.container.remove",
           "when": "false"
         },
         {

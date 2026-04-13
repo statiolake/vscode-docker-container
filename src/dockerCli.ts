@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -69,8 +70,8 @@ export class DockerCli {
   }
 
   public async startStack(stack: ComposeStack): Promise<void> {
-    if (canRunCompose(stack)) {
-      await this.runCompose(stack, ["start"]);
+    if (canRunComposeProject(stack)) {
+      await this.runComposeProject(stack, ["start"]);
       return;
     }
 
@@ -78,8 +79,8 @@ export class DockerCli {
   }
 
   public async stopStack(stack: ComposeStack): Promise<void> {
-    if (canRunCompose(stack)) {
-      await this.runCompose(stack, ["stop"]);
+    if (canRunComposeProject(stack)) {
+      await this.runComposeProject(stack, ["stop"]);
       return;
     }
 
@@ -87,8 +88,18 @@ export class DockerCli {
   }
 
   public async rebuildStack(stack: ComposeStack): Promise<void> {
-    assertCanRunCompose(stack);
-    await this.runCompose(stack, ["up", "--build", "--detach"]);
+    assertCanBuildCompose(stack);
+    await this.runComposeWithFiles(stack, ["up", "--build", "--detach"]);
+  }
+
+  public async downStack(stack: ComposeStack): Promise<void> {
+    assertCanRunComposeProject(stack);
+    await this.runComposeProject(stack, ["down"]);
+  }
+
+  public async downStackWithVolumes(stack: ComposeStack): Promise<void> {
+    assertCanRunComposeProject(stack);
+    await this.runComposeProject(stack, ["down", "--volumes"]);
   }
 
   public async startContainer(container: DockerContainer): Promise<void> {
@@ -106,8 +117,12 @@ export class DockerCli {
   public async rebuildContainer(container: DockerContainer): Promise<void> {
     const service = composeService(container);
     const stack = stackForComposeContainer(container);
-    assertCanRunCompose(stack);
-    await this.runCompose(stack, ["up", "--build", "--detach", service]);
+    assertCanBuildCompose(stack);
+    await this.runComposeWithFiles(stack, ["up", "--build", "--detach", service]);
+  }
+
+  public async removeContainer(container: DockerContainer): Promise<void> {
+    await this.run("rm", [container.id]);
   }
 
   public async logs(containerId: string, tail: number): Promise<string> {
@@ -163,7 +178,7 @@ export class DockerCli {
     await this.exec([subcommand, ...values]);
   }
 
-  private async runCompose(stack: ComposeStack, action: readonly string[]): Promise<void> {
+  private async runComposeWithFiles(stack: ComposeStack, action: readonly string[]): Promise<void> {
     const composeArgs = ["compose"];
     for (const configFile of stack.configFiles) {
       composeArgs.push("--file", configFile);
@@ -171,6 +186,10 @@ export class DockerCli {
     composeArgs.push("--project-name", stack.name, ...action);
 
     await this.exec(composeArgs, stack.workingDir);
+  }
+
+  private async runComposeProject(stack: ComposeStack, action: readonly string[]): Promise<void> {
+    await this.exec(["compose", "--project-name", stack.name, ...action]);
   }
 
   private async exec(args: readonly string[], cwd?: string): Promise<{ readonly stdout: string; readonly stderr: string }> {
@@ -243,13 +262,23 @@ function splitComposeConfigFiles(value: string | undefined): readonly string[] {
   return value.split(",").map((file) => file.trim()).filter((file) => file.length > 0);
 }
 
-function canRunCompose(stack: ComposeStack): boolean {
-  return stack.isCompose && stack.configFiles.length > 0;
+export function canRunComposeProject(stack: ComposeStack): boolean {
+  return stack.isCompose && stack.name.length > 0;
 }
 
-function assertCanRunCompose(stack: ComposeStack): void {
-  if (!canRunCompose(stack)) {
-    throw new Error("This container does not include enough Docker Compose metadata to rebuild it.");
+function assertCanRunComposeProject(stack: ComposeStack): void {
+  if (!canRunComposeProject(stack)) {
+    throw new Error("This stack does not include Docker Compose project metadata.");
+  }
+}
+
+export function canBuildCompose(stack: ComposeStack): boolean {
+  return canRunComposeProject(stack) && stack.configFiles.length > 0 && stack.configFiles.every((configFile) => existsSync(configFile));
+}
+
+function assertCanBuildCompose(stack: ComposeStack): void {
+  if (!canBuildCompose(stack)) {
+    throw new Error("This container does not include usable Docker Compose metadata to rebuild it.");
   }
 }
 
@@ -270,6 +299,10 @@ function composeService(container: DockerContainer): string {
   }
 
   return container.composeService;
+}
+
+export function canBuildComposeContainer(container: DockerContainer): boolean {
+  return canBuildCompose(stackForComposeContainer(container));
 }
 
 function isExecError(error: unknown): error is { readonly stdout?: string; readonly stderr?: string; readonly message: string } {
