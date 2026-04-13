@@ -26,9 +26,12 @@
     "onView:dockerContainerStacksRunning",
     "onView:dockerContainerStacksInactive",
     "onCommand:dockerContainerStacks.refresh",
+    "onCommand:dockerContainerStacks.stack.copyName",
     "onCommand:dockerContainerStacks.stack.rebuild",
     "onCommand:dockerContainerStacks.stack.down",
     "onCommand:dockerContainerStacks.stack.downVolumes",
+    "onCommand:dockerContainerStacks.container.copyName",
+    "onCommand:dockerContainerStacks.container.executeBash",
     "onCommand:dockerContainerStacks.container.rebuild",
     "onCommand:dockerContainerStacks.container.remove",
     "onCommand:dockerContainerStacks.openLogs"
@@ -73,6 +76,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "dockerContainerStacks.stack.copyName",
+        "title": "Copy name",
+        "icon": "$(copy)"
+      },
+      {
         "command": "dockerContainerStacks.container.stop",
         "title": "Stop",
         "icon": "$(debug-stop)"
@@ -102,6 +110,16 @@
         "command": "dockerContainerStacks.container.remove",
         "title": "Remove",
         "icon": "$(trash)"
+      },
+      {
+        "command": "dockerContainerStacks.container.copyName",
+        "title": "Copy name",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "dockerContainerStacks.container.executeBash",
+        "title": "Execute Bash",
+        "icon": "$(terminal)"
       },
       {
         "command": "dockerContainerStacks.openLogs",
@@ -147,47 +165,52 @@
         {
           "command": "dockerContainerStacks.stack.stop",
           "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeStackBuildable|composeStack|standaloneStack)\\.running$/",
-          "group": "stack@1"
+          "group": "1_stack@1"
         },
         {
           "command": "dockerContainerStacks.stack.start",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeStackBuildable|composeStack|standaloneStack)\\.inactive$/",
-          "group": "stack@1"
+          "group": "1_stack@1"
         },
         {
           "command": "dockerContainerStacks.stack.rebuild",
           "when": "view == dockerContainerStacksRunning && viewItem =~ /^composeStackBuildable\\.running$/",
-          "group": "stack@2"
+          "group": "1_stack@2"
         },
         {
           "command": "dockerContainerStacks.stack.rebuildUnavailable",
           "when": "view == dockerContainerStacksRunning && viewItem =~ /^composeStack\\.running$/",
-          "group": "stack@2"
+          "group": "1_stack@2"
         },
         {
           "command": "dockerContainerStacks.stack.rebuild",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^composeStackBuildable\\.inactive$/",
-          "group": "stack@2"
+          "group": "1_stack@2"
         },
         {
           "command": "dockerContainerStacks.stack.rebuildUnavailable",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^composeStack\\.inactive$/",
-          "group": "stack@2"
+          "group": "1_stack@2"
         },
         {
           "command": "dockerContainerStacks.stack.down",
           "when": "viewItem =~ /^(composeStackBuildable|composeStack)\\.(running|inactive)$/",
-          "group": "stack@3"
+          "group": "1_stack@3"
         },
         {
           "command": "dockerContainerStacks.stack.downVolumes",
           "when": "viewItem =~ /^(composeStackBuildable|composeStack)\\.(running|inactive)$/",
-          "group": "stack@4"
+          "group": "1_stack@4"
+        },
+        {
+          "command": "dockerContainerStacks.stack.copyName",
+          "when": "viewItem =~ /^(composeStackBuildable|composeStack|standaloneStack)\\.(running|inactive)$/",
+          "group": "2_utility@1"
         },
         {
           "command": "dockerContainerStacks.container.stop",
           "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.running$/",
-          "group": "container@1"
+          "group": "1_container@1"
         },
         {
           "command": "dockerContainerStacks.container.restart",
@@ -197,22 +220,22 @@
         {
           "command": "dockerContainerStacks.container.restart",
           "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.running$/",
-          "group": "container@2"
+          "group": "1_container@2"
         },
         {
           "command": "dockerContainerStacks.container.rebuild",
           "when": "view == dockerContainerStacksRunning && viewItem =~ /^composeContainerBuildable\\.running$/",
-          "group": "container@3"
+          "group": "1_container@3"
         },
         {
           "command": "dockerContainerStacks.container.rebuildUnavailable",
           "when": "view == dockerContainerStacksRunning && viewItem =~ /^composeContainer\\.running$/",
-          "group": "container@3"
+          "group": "1_container@3"
         },
         {
           "command": "dockerContainerStacks.container.start",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.inactive$/",
-          "group": "container@1"
+          "group": "1_container@1"
         },
         {
           "command": "dockerContainerStacks.container.restart",
@@ -222,22 +245,32 @@
         {
           "command": "dockerContainerStacks.container.restart",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.inactive$/",
-          "group": "container@2"
+          "group": "1_container@2"
         },
         {
           "command": "dockerContainerStacks.container.rebuild",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^composeContainerBuildable\\.inactive$/",
-          "group": "container@3"
+          "group": "1_container@3"
         },
         {
           "command": "dockerContainerStacks.container.rebuildUnavailable",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^composeContainer\\.inactive$/",
-          "group": "container@3"
+          "group": "1_container@3"
         },
         {
           "command": "dockerContainerStacks.container.remove",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.inactive$/",
-          "group": "container@4"
+          "group": "1_container@4"
+        },
+        {
+          "command": "dockerContainerStacks.container.copyName",
+          "when": "viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.(running|inactive)$/",
+          "group": "2_utility@1"
+        },
+        {
+          "command": "dockerContainerStacks.container.executeBash",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.running$/",
+          "group": "2_utility@2"
         }
       ],
       "commandPalette": [
@@ -246,6 +279,10 @@
           "when": "false"
         },
         {
+          "command": "dockerContainerStacks.stack.copyName",
+          "when": "false"
+        },
+        {
           "command": "dockerContainerStacks.stack.start",
           "when": "false"
         },
@@ -267,6 +304,14 @@
         },
         {
           "command": "dockerContainerStacks.container.stop",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.container.copyName",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.container.executeBash",
           "when": "false"
         },
         {
