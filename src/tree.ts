@@ -22,6 +22,26 @@ export class DockerTreeStore {
     this.loaded = true;
   }
 
+  public findContainer(id: string): DockerContainer | undefined {
+    for (const stack of this.stacks) {
+      for (const container of stack.containers) {
+        if (container.id === id) {
+          return container;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  public containersInComposeProject(project: string): readonly DockerContainer[] {
+    const stack = this.stacks.find((candidate) => candidate.isCompose && candidate.name === project);
+    return stack?.containers ?? [];
+  }
+
+  public findComposeService(project: string, service: string): DockerContainer | undefined {
+    return this.containersInComposeProject(project).find((container) => container.composeService === service);
+  }
+
   public stacksFor(filter: ContainerStateFilter): readonly ComposeStack[] {
     return this.stacks.flatMap((stack) => {
       const containers = stack.containers.filter((container) => matchesFilter(container, filter));
