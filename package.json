@@ -132,7 +132,7 @@
         {
           "id": "dockerContainerStacksPanel",
           "title": "Docker Containers",
-          "icon": "media/docker.svg"
+          "icon": "media/container.svg"
         }
       ]
     },
