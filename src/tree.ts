@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { ComposeStack, DockerCli, DockerContainer, canBuildCompose, canBuildComposeContainer, canRunComposeProject } from "./dockerCli";
+import { ComposeStack, DockerCli, DockerContainer, canBuildCompose, canBuildComposeContainer, canRunComposeProject, isStableContainerState } from "./dockerCli";
 
 export type DockerTreeItem = ComposeStackItem | ContainerItem;
 export type ContainerStateFilter = "running" | "inactive";
@@ -114,7 +114,7 @@ export class ComposeStackItem extends vscode.TreeItem {
     this.id = `stack:${stack.id}`;
     this.description = stack.isCompose ? `${stack.containers.length} containers` : undefined;
     this.tooltip = stackTooltip(stack);
-    this.iconPath = new vscode.ThemeIcon(isBusy ? "loading~spin" : stack.isCompose ? "layers" : "server");
+    this.iconPath = new vscode.ThemeIcon(isBusy || stackIsTransitioning(stack) ? "loading~spin" : stack.isCompose ? "layers" : "server");
     const stackType = stackContext(stack);
     this.contextValue = `${stackType}.${filter}`;
   }
@@ -132,7 +132,7 @@ export class ContainerItem extends vscode.TreeItem {
     this.id = `container:${container.id}`;
     this.description = container.image;
     this.tooltip = containerTooltip(container);
-    this.iconPath = new vscode.ThemeIcon(isBusy ? "loading~spin" : containerIcon(container));
+    this.iconPath = new vscode.ThemeIcon(isBusy || containerIsTransitioning(container) ? "loading~spin" : containerIcon(container));
     const containerType = containerContext(container);
     this.contextValue = `${containerType}.${filter}`;
     this.command = {
@@ -167,6 +167,14 @@ function containerIcon(container: DockerContainer): string {
     return "vm-running";
   }
   return "vm";
+}
+
+function containerIsTransitioning(container: DockerContainer): boolean {
+  return !isStableContainerState(container);
+}
+
+function stackIsTransitioning(stack: ComposeStack): boolean {
+  return stack.containers.some(containerIsTransitioning);
 }
 
 function matchesFilter(container: DockerContainer, filter: ContainerStateFilter): boolean {

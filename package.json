@@ -168,6 +168,11 @@
           "group": "1_stack@1"
         },
         {
+          "command": "dockerContainerStacks.stack.stop",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeStackBuildable|composeStack)\\.running$/",
+          "group": "inline@1"
+        },
+        {
           "command": "dockerContainerStacks.stack.start",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeStackBuildable|composeStack|standaloneStack)\\.inactive$/",
           "group": "1_stack@1"
@@ -213,9 +218,14 @@
           "group": "1_container@1"
         },
         {
+          "command": "dockerContainerStacks.container.stop",
+          "when": "view == dockerContainerStacksRunning && viewItem =~ /^dockerContainer\\.running$/",
+          "group": "inline@1"
+        },
+        {
           "command": "dockerContainerStacks.container.restart",
           "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.running$/",
-          "group": "inline@1"
+          "group": "inline@2"
         },
         {
           "command": "dockerContainerStacks.container.restart",
@@ -240,7 +250,7 @@
         {
           "command": "dockerContainerStacks.container.restart",
           "when": "view == dockerContainerStacksInactive && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.inactive$/",
-          "group": "inline@1"
+          "group": "inline@2"
         },
         {
           "command": "dockerContainerStacks.container.restart",

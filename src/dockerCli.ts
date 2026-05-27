@@ -38,6 +38,9 @@ interface DockerInspectContainer {
   };
   readonly State?: {
     readonly Status?: string;
+    readonly Health?: {
+      readonly Status?: string;
+    };
   };
 }
 
@@ -218,7 +221,7 @@ function toDockerContainer(container: DockerInspectContainer): DockerContainer {
     name,
     image: container.Config?.Image ?? "",
     state: container.State?.Status ?? "unknown",
-    status: container.State?.Status ?? "unknown",
+    status: healthAwareStatus(container),
     composeProject: labels["com.docker.compose.project"],
     composeService: labels["com.docker.compose.service"],
     composeWorkingDir: labels["com.docker.compose.project.working_dir"],
@@ -305,6 +308,27 @@ export function canBuildComposeContainer(container: DockerContainer): boolean {
   return canBuildCompose(stackForComposeContainer(container));
 }
 
+export function isStableContainerState(container: DockerContainer): boolean {
+  if (container.status === "starting" || container.status === "stopping") {
+    return false;
+  }
+
+  return container.state === "running"
+    || container.state === "exited"
+    || container.state === "created"
+    || container.state === "paused"
+    || container.state === "dead";
+}
+
 function isExecError(error: unknown): error is { readonly stdout?: string; readonly stderr?: string; readonly message: string } {
   return error instanceof Error && ("stdout" in error || "stderr" in error);
+}
+
+function healthAwareStatus(container: DockerInspectContainer): string {
+  const health = container.State?.Health?.Status;
+  if (health === "starting") {
+    return "starting";
+  }
+
+  return container.State?.Status ?? "unknown";
 }
