@@ -10,6 +10,7 @@ export class RefreshScheduler implements vscode.Disposable {
 
   public constructor(
     private readonly performRefresh: () => Promise<void>,
+    private readonly handleEvent: (event: DockerEvent) => void,
     private readonly streamEvents: (onEvent: (event: DockerEvent) => void, onError: (error: string) => void) => DockerEventStream
   ) {}
 
@@ -60,7 +61,10 @@ export class RefreshScheduler implements vscode.Disposable {
     if (this.visibleCount > 0) {
       if (!this.stream) {
         this.stream = this.streamEvents(
-          () => void this.refreshNow(),
+          (event) => {
+            this.handleEvent(event);
+            void this.refreshNow();
+          },
           () => this.scheduleRestart()
         );
       }

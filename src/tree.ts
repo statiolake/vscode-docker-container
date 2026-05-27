@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { ComposeStack, DockerCli, DockerContainer, canBuildCompose, canBuildComposeContainer, canRunComposeProject, isStableContainerState } from "./dockerCli";
+import { ComposeStack, DockerCli, DockerContainer, DockerEvent, canBuildCompose, canBuildComposeContainer, canRunComposeProject, isStableContainerState } from "./dockerCli";
 
 export type DockerTreeItem = ComposeStackItem | ContainerItem;
 export type ContainerStateFilter = "running" | "inactive";
@@ -7,6 +7,7 @@ export type ContainerStateFilter = "running" | "inactive";
 export class DockerTreeStore {
   private stacks: readonly ComposeStack[] = [];
   private readonly busyItems = new Set<string>();
+  private readonly transientStates = new Map<string, string>();
   private loaded = false;
 
   public constructor(private readonly docker: DockerCli) {}
@@ -19,6 +20,7 @@ export class DockerTreeStore {
 
   public async refresh(): Promise<void> {
     this.stacks = await this.docker.listStacks();
+    this.reconcileTransientStates();
     this.loaded = true;
   }
 
@@ -69,6 +71,70 @@ export class DockerTreeStore {
   public isBusy(key: string): boolean {
     return this.busyItems.has(key);
   }
+
+  public applyEvent(event: DockerEvent): boolean {
+    const containerId = event.id ?? event.Actor?.ID;
+    if (!containerId) {
+      return false;
+    }
+
+    switch (event.action) {
+      case "kill":
+        return this.setTransientState(containerId, "stopping");
+      case "die":
+      case "stop":
+      case "start":
+      case "destroy":
+        return this.clearTransientState(containerId);
+      default:
+        return false;
+    }
+  }
+
+  public isContainerTransitioning(container: DockerContainer): boolean {
+    const transientState = this.transientStates.get(container.id);
+    if (transientState === "stopping") {
+      return true;
+    }
+    return !isStableContainerState(container);
+  }
+
+  public isStackTransitioning(stack: ComposeStack): boolean {
+    return stack.containers.some((container) => this.isContainerTransitioning(container));
+  }
+
+  private setTransientState(containerId: string, state: string): boolean {
+    if (this.transientStates.get(containerId) === state) {
+      return false;
+    }
+    this.transientStates.set(containerId, state);
+    return true;
+  }
+
+  private clearTransientState(containerId: string): boolean {
+    return this.transientStates.delete(containerId);
+  }
+
+  private reconcileTransientStates(): void {
+    const containers = new Map<string, DockerContainer>();
+    for (const stack of this.stacks) {
+      for (const container of stack.containers) {
+        containers.set(container.id, container);
+      }
+    }
+
+    for (const [containerId, transientState] of this.transientStates) {
+      const container = containers.get(containerId);
+      if (!container) {
+        this.transientStates.delete(containerId);
+        continue;
+      }
+
+      if (transientState === "stopping" && container.state !== "running") {
+        this.transientStates.delete(containerId);
+      }
+    }
+  }
 }
 
 export class DockerTreeProvider implements vscode.TreeDataProvider<DockerTreeItem> {
@@ -91,11 +157,21 @@ export class DockerTreeProvider implements vscode.TreeDataProvider<DockerTreeIte
   public async getChildren(element?: DockerTreeItem): Promise<DockerTreeItem[]> {
     if (!element) {
       await this.store.ensureLoaded();
-      return this.store.stacksFor(this.filter).map((stack) => new ComposeStackItem(stack, this.filter, this.store.isBusy(stackBusyKey(stack))));
+      return this.store.stacksFor(this.filter).map((stack) => new ComposeStackItem(
+        stack,
+        this.filter,
+        this.store.isBusy(stackBusyKey(stack)),
+        this.store.isStackTransitioning(stack)
+      ));
     }
 
     if (element instanceof ComposeStackItem) {
-      return element.stack.containers.map((container) => new ContainerItem(container, this.filter, this.store.isBusy(containerBusyKey(container))));
+      return element.stack.containers.map((container) => new ContainerItem(
+        container,
+        this.filter,
+        this.store.isBusy(containerBusyKey(container)),
+        this.store.isContainerTransitioning(container)
+      ));
     }
 
     return [];
@@ -108,13 +184,14 @@ export class ComposeStackItem extends vscode.TreeItem {
   public constructor(
     public readonly stack: ComposeStack,
     filter: ContainerStateFilter,
-    isBusy: boolean
+    isBusy: boolean,
+    isTransitioning: boolean
   ) {
     super(stack.name, vscode.TreeItemCollapsibleState.Expanded);
     this.id = `stack:${stack.id}`;
     this.description = stack.isCompose ? `${stack.containers.length} containers` : undefined;
     this.tooltip = stackTooltip(stack);
-    this.iconPath = new vscode.ThemeIcon(isBusy || stackIsTransitioning(stack) ? "loading~spin" : stack.isCompose ? "layers" : "server");
+    this.iconPath = new vscode.ThemeIcon(isBusy || isTransitioning ? "loading~spin" : stack.isCompose ? "layers" : "server");
     const stackType = stackContext(stack);
     this.contextValue = `${stackType}.${filter}`;
   }
@@ -126,13 +203,14 @@ export class ContainerItem extends vscode.TreeItem {
   public constructor(
     public readonly container: DockerContainer,
     filter: ContainerStateFilter,
-    isBusy: boolean
+    isBusy: boolean,
+    isTransitioning: boolean
   ) {
     super(container.composeService ?? container.name, vscode.TreeItemCollapsibleState.None);
     this.id = `container:${container.id}`;
     this.description = container.image;
     this.tooltip = containerTooltip(container);
-    this.iconPath = new vscode.ThemeIcon(isBusy || containerIsTransitioning(container) ? "loading~spin" : containerIcon(container));
+    this.iconPath = new vscode.ThemeIcon(isBusy || isTransitioning ? "loading~spin" : containerIcon(container));
     const containerType = containerContext(container);
     this.contextValue = `${containerType}.${filter}`;
     this.command = {
@@ -167,14 +245,6 @@ function containerIcon(container: DockerContainer): string {
     return "vm-running";
   }
   return "vm";
-}
-
-function containerIsTransitioning(container: DockerContainer): boolean {
-  return !isStableContainerState(container);
-}
-
-function stackIsTransitioning(stack: ComposeStack): boolean {
-  return stack.containers.some(containerIsTransitioning);
 }
 
 function matchesFilter(container: DockerContainer, filter: ContainerStateFilter): boolean {

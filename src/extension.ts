@@ -32,6 +32,11 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       refreshProviders(treeProviders);
     },
+    (event) => {
+      if (treeStore.applyEvent(event)) {
+        refreshProviders(treeProviders);
+      }
+    },
     (onEvent, onError) => docker.streamContainerEvents(onEvent, onError)
   );
 
