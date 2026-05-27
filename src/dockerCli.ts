@@ -29,6 +29,20 @@ export interface DockerLogStream {
   dispose(): void;
 }
 
+export interface DockerEvent {
+  readonly type?: string;
+  readonly action?: string;
+  readonly id?: string;
+  readonly Actor?: {
+    readonly ID?: string;
+    readonly Attributes?: Record<string, string>;
+  };
+}
+
+export interface DockerEventStream {
+  dispose(): void;
+}
+
 interface DockerInspectContainer {
   readonly Id: string;
   readonly Name?: string;
@@ -153,6 +167,56 @@ export class DockerCli {
 
     return {
       dispose: () => {
+        if (!child.killed) {
+          child.kill();
+        }
+      }
+    };
+  }
+
+  public streamContainerEvents(onEvent: (event: DockerEvent) => void, onError: (error: string) => void): DockerEventStream {
+    const child = spawn(this.dockerPath, [
+      "events",
+      "--filter",
+      "type=container",
+      "--format",
+      "{{json .}}"
+    ]);
+    let disposed = false;
+    let stdoutBuffer = "";
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdoutBuffer += chunk.toString();
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.trim()) {
+          continue;
+        }
+        try {
+          onEvent(JSON.parse(line) as DockerEvent);
+        } catch (error) {
+          onError(error instanceof Error ? error.message : String(error));
+        }
+      }
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      onError(chunk.toString());
+    });
+    child.on("error", (error) => {
+      if (!disposed) {
+        onError(error.message);
+      }
+    });
+    child.on("close", (code, signal) => {
+      if (!disposed && (code !== 0 || signal)) {
+        onError(`docker events exited unexpectedly (code=${code ?? "null"}, signal=${signal ?? "null"})`);
+      }
+    });
+
+    return {
+      dispose: () => {
+        disposed = true;
         if (!child.killed) {
           child.kill();
         }

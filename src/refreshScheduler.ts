@@ -1,35 +1,24 @@
 import * as vscode from "vscode";
-
-export interface Expectation {
-  readonly predicate: () => boolean;
-  readonly timeoutMs: number;
-}
-
-type Mode = "running" | "none";
-
-interface PendingExpectation {
-  readonly predicate: () => boolean;
-  readonly expiresAt: number;
-}
+import { DockerEvent, DockerEventStream } from "./dockerCli";
 
 export class RefreshScheduler implements vscode.Disposable {
-  private timer: NodeJS.Timeout | undefined;
-  private mode: Mode = "none";
-  private pending: PendingExpectation[] = [];
+  private stream: DockerEventStream | undefined;
+  private restartTimer: NodeJS.Timeout | undefined;
   private visibleCount = 0;
   private refreshing = false;
+  private queuedRefresh = false;
 
   public constructor(
     private readonly performRefresh: () => Promise<void>,
-    private readonly refreshMs: number
+    private readonly streamEvents: (onEvent: (event: DockerEvent) => void, onError: (error: string) => void) => DockerEventStream
   ) {}
 
   public trackView(view: vscode.TreeView<unknown>): vscode.Disposable {
     let visible = view.visible;
     if (visible) {
       this.visibleCount++;
-      this.reschedule();
-      void this.tick();
+      this.updateSubscription();
+      void this.refreshNow();
     }
 
     return view.onDidChangeVisibility((event) => {
@@ -38,62 +27,21 @@ export class RefreshScheduler implements vscode.Disposable {
       }
       visible = event.visible;
       this.visibleCount += visible ? 1 : -1;
-      this.reschedule();
+      this.updateSubscription();
       if (visible) {
-        void this.tick();
+        void this.refreshNow();
       }
     });
-  }
-
-  public expect(expectation: Expectation): void {
-    this.pending.push({
-      predicate: expectation.predicate,
-      expiresAt: Date.now() + expectation.timeoutMs
-    });
-    this.reschedule();
   }
 
   public dispose(): void {
-    this.stopTimer();
+    this.stopStream();
+    this.clearRestartTimer();
   }
 
-  private reschedule(): void {
-    if (this.visibleCount <= 0) {
-      this.setMode("none");
-      return;
-    }
-    this.setMode("running");
-  }
-
-  private hasPending(): boolean {
-    const now = Date.now();
-    this.pending = this.pending.filter((entry) => {
-      if (entry.expiresAt <= now) {
-        return false;
-      }
-      try {
-        return !entry.predicate();
-      } catch {
-        return false;
-      }
-    });
-    return this.pending.length > 0;
-  }
-
-  private setMode(mode: Mode): void {
-    if (mode === this.mode) {
-      return;
-    }
-    this.mode = mode;
-    this.stopTimer();
-    if (mode === "none") {
-      return;
-    }
-    this.timer = setInterval(() => void this.tick(), this.refreshMs);
-  }
-
-  private async tick(): Promise<void> {
+  private async refreshNow(): Promise<void> {
     if (this.refreshing) {
+      this.queuedRefresh = true;
       return;
     }
     this.refreshing = true;
@@ -102,13 +50,49 @@ export class RefreshScheduler implements vscode.Disposable {
     } finally {
       this.refreshing = false;
     }
-    this.hasPending();
+    if (this.queuedRefresh) {
+      this.queuedRefresh = false;
+      void this.refreshNow();
+    }
   }
 
-  private stopTimer(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = undefined;
+  private updateSubscription(): void {
+    if (this.visibleCount > 0) {
+      if (!this.stream) {
+        this.stream = this.streamEvents(
+          () => void this.refreshNow(),
+          () => this.scheduleRestart()
+        );
+      }
+      return;
+    }
+
+    this.stopStream();
+    this.clearRestartTimer();
+  }
+
+  private scheduleRestart(): void {
+    if (this.visibleCount <= 0 || this.restartTimer) {
+      return;
+    }
+    this.stopStream();
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = undefined;
+      this.updateSubscription();
+    }, 1_000);
+  }
+
+  private stopStream(): void {
+    if (this.stream) {
+      this.stream.dispose();
+      this.stream = undefined;
+    }
+  }
+
+  private clearRestartTimer(): void {
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = undefined;
     }
   }
 }

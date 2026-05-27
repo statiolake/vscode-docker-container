@@ -1,23 +1,18 @@
 import * as vscode from "vscode";
 import { DockerCli } from "./dockerCli";
-import { createExpectations } from "./expectations";
 import { LogDocumentProvider } from "./logDocument";
-import { Expectation, RefreshScheduler } from "./refreshScheduler";
+import { RefreshScheduler } from "./refreshScheduler";
 import { ComposeStackItem, ContainerItem, DockerTreeProvider, DockerTreeStore, containerBusyKey, stackBusyKey } from "./tree";
 
 const logScheme = "docker-container-log";
 
-const refreshMs = 10_000;
-
 interface ActionContext {
   readonly store: DockerTreeStore;
   readonly providers: readonly DockerTreeProvider[];
-  readonly scheduler: RefreshScheduler;
 }
 
 interface ActionOptions {
   readonly busyKey?: string;
-  readonly expectation?: Expectation;
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -37,11 +32,10 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       refreshProviders(treeProviders);
     },
-    refreshMs
+    (onEvent, onError) => docker.streamContainerEvents(onEvent, onError)
   );
 
-  const ctx: ActionContext = { store: treeStore, providers: treeProviders, scheduler };
-  const expects = createExpectations(treeStore);
+  const ctx: ActionContext = { store: treeStore, providers: treeProviders };
 
   const runningView = vscode.window.createTreeView("dockerContainerStacksRunning", { treeDataProvider: runningTreeProvider });
   const inactiveView = vscode.window.createTreeView("dockerContainerStacksInactive", { treeDataProvider: inactiveTreeProvider });
@@ -64,32 +58,32 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("dockerContainerStacks.stack.copyName",
       (item: ComposeStackItem) => copyName(item.stack.name)),
     vscode.commands.registerCommand("dockerContainerStacks.stack.stop",
-      (item: ComposeStackItem) => runAction(ctx, () => docker.stopStack(item.stack), { expectation: expects.stackStopped(item.stack) })),
+      (item: ComposeStackItem) => runAction(ctx, () => docker.stopStack(item.stack))),
     vscode.commands.registerCommand("dockerContainerStacks.stack.start",
-      (item: ComposeStackItem) => runAction(ctx, () => docker.startStack(item.stack), { expectation: expects.stackRunning(item.stack) })),
+      (item: ComposeStackItem) => runAction(ctx, () => docker.startStack(item.stack))),
     vscode.commands.registerCommand("dockerContainerStacks.stack.rebuild",
-      (item: ComposeStackItem) => runAction(ctx, () => docker.rebuildStack(item.stack), { busyKey: stackBusyKey(item.stack), expectation: expects.stackRebuilt(item.stack) })),
+      (item: ComposeStackItem) => runAction(ctx, () => docker.rebuildStack(item.stack), { busyKey: stackBusyKey(item.stack) })),
     vscode.commands.registerCommand("dockerContainerStacks.stack.down",
       (item: ComposeStackItem) => confirmAndRun("Down", `Run docker compose down for ${item.stack.name}?`,
-        () => runAction(ctx, () => docker.downStack(item.stack), { busyKey: stackBusyKey(item.stack), expectation: expects.stackAbsent(item.stack) }))),
+        () => runAction(ctx, () => docker.downStack(item.stack), { busyKey: stackBusyKey(item.stack) }))),
     vscode.commands.registerCommand("dockerContainerStacks.stack.downVolumes",
       (item: ComposeStackItem) => confirmAndRun("Down -v", `Run docker compose down -v for ${item.stack.name}? This removes named volumes declared by the project.`,
-        () => runAction(ctx, () => docker.downStackWithVolumes(item.stack), { busyKey: stackBusyKey(item.stack), expectation: expects.stackAbsent(item.stack) }))),
+        () => runAction(ctx, () => docker.downStackWithVolumes(item.stack), { busyKey: stackBusyKey(item.stack) }))),
     vscode.commands.registerCommand("dockerContainerStacks.container.copyName",
       (item: ContainerItem) => copyName(item.container.name)),
     vscode.commands.registerCommand("dockerContainerStacks.container.executeBash",
       (item: ContainerItem) => executeBash(item)),
     vscode.commands.registerCommand("dockerContainerStacks.container.stop",
-      (item: ContainerItem) => runAction(ctx, () => docker.stopContainer(item.container), { expectation: expects.containerStopped(item.container) })),
+      (item: ContainerItem) => runAction(ctx, () => docker.stopContainer(item.container))),
     vscode.commands.registerCommand("dockerContainerStacks.container.start",
-      (item: ContainerItem) => runAction(ctx, () => docker.startContainer(item.container), { expectation: expects.containerRunning(item.container) })),
+      (item: ContainerItem) => runAction(ctx, () => docker.startContainer(item.container))),
     vscode.commands.registerCommand("dockerContainerStacks.container.restart",
-      (item: ContainerItem) => runAction(ctx, () => docker.restartContainer(item.container), { busyKey: containerBusyKey(item.container), expectation: expects.containerRunning(item.container) })),
+      (item: ContainerItem) => runAction(ctx, () => docker.restartContainer(item.container), { busyKey: containerBusyKey(item.container) })),
     vscode.commands.registerCommand("dockerContainerStacks.container.rebuild",
-      (item: ContainerItem) => runAction(ctx, () => docker.rebuildContainer(item.container), { busyKey: containerBusyKey(item.container), expectation: expects.containerRebuilt(item.container) })),
+      (item: ContainerItem) => runAction(ctx, () => docker.rebuildContainer(item.container), { busyKey: containerBusyKey(item.container) })),
     vscode.commands.registerCommand("dockerContainerStacks.container.remove",
       (item: ContainerItem) => confirmAndRun("Remove", `Remove container ${item.container.name}?`,
-        () => runAction(ctx, () => docker.removeContainer(item.container), { busyKey: containerBusyKey(item.container), expectation: expects.containerAbsent(item.container) }))),
+        () => runAction(ctx, () => docker.removeContainer(item.container), { busyKey: containerBusyKey(item.container) }))),
     vscode.commands.registerCommand("dockerContainerStacks.openLogs",
       (item: ContainerItem) => openLogs(item))
   );
@@ -156,9 +150,6 @@ async function runAction(
   try {
     await operation();
     await ctx.store.refresh();
-    if (options.expectation) {
-      ctx.scheduler.expect(options.expectation);
-    }
   } catch (error) {
     void vscode.window.showErrorMessage(errorMessage(error));
   } finally {
