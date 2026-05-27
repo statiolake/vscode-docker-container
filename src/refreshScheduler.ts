@@ -5,7 +5,7 @@ export interface Expectation {
   readonly timeoutMs: number;
 }
 
-type Mode = "idle" | "active" | "none";
+type Mode = "running" | "none";
 
 interface PendingExpectation {
   readonly predicate: () => boolean;
@@ -21,8 +21,7 @@ export class RefreshScheduler implements vscode.Disposable {
 
   public constructor(
     private readonly performRefresh: () => Promise<void>,
-    private readonly idleMs: number,
-    private readonly activeMs: number
+    private readonly refreshMs: number
   ) {}
 
   public trackView(view: vscode.TreeView<unknown>): vscode.Disposable {
@@ -30,6 +29,7 @@ export class RefreshScheduler implements vscode.Disposable {
     if (visible) {
       this.visibleCount++;
       this.reschedule();
+      void this.tick();
     }
 
     return view.onDidChangeVisibility((event) => {
@@ -39,6 +39,9 @@ export class RefreshScheduler implements vscode.Disposable {
       visible = event.visible;
       this.visibleCount += visible ? 1 : -1;
       this.reschedule();
+      if (visible) {
+        void this.tick();
+      }
     });
   }
 
@@ -59,7 +62,7 @@ export class RefreshScheduler implements vscode.Disposable {
       this.setMode("none");
       return;
     }
-    this.setMode(this.hasPending() ? "active" : "idle");
+    this.setMode("running");
   }
 
   private hasPending(): boolean {
@@ -86,8 +89,7 @@ export class RefreshScheduler implements vscode.Disposable {
     if (mode === "none") {
       return;
     }
-    const intervalMs = mode === "active" ? this.activeMs : this.idleMs;
-    this.timer = setInterval(() => void this.tick(), intervalMs);
+    this.timer = setInterval(() => void this.tick(), this.refreshMs);
   }
 
   private async tick(): Promise<void> {
@@ -100,7 +102,7 @@ export class RefreshScheduler implements vscode.Disposable {
     } finally {
       this.refreshing = false;
     }
-    this.reschedule();
+    this.hasPending();
   }
 
   private stopTimer(): void {

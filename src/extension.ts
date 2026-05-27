@@ -7,8 +7,7 @@ import { ComposeStackItem, ContainerItem, DockerTreeProvider, DockerTreeStore, c
 
 const logScheme = "docker-container-log";
 
-const idleRefreshMs = 60_000;
-const activeRefreshMs = 10_000;
+const refreshMs = 10_000;
 
 interface ActionContext {
   readonly store: DockerTreeStore;
@@ -38,8 +37,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       refreshProviders(treeProviders);
     },
-    idleRefreshMs,
-    activeRefreshMs
+    refreshMs
   );
 
   const ctx: ActionContext = { store: treeStore, providers: treeProviders, scheduler };
