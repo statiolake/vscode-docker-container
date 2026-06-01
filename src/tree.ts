@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { ComposeStack, DockerCli, DockerContainer, DockerEvent, canBuildCompose, canBuildComposeContainer, canRunComposeProject, isStableContainerState } from "./dockerCli";
+import { ComposeStack, DockerCli, DockerContainer, DockerContainerEvent, DockerEvent, canBuildCompose, canBuildComposeContainer, canRunComposeProject, isStableContainerState } from "./dockerCli";
 
 export type DockerTreeItem = ComposeStackItem | ContainerItem;
 export type ContainerStateFilter = "running" | "inactive";
@@ -73,19 +73,19 @@ export class DockerTreeStore {
   }
 
   public applyEvent(event: DockerEvent): boolean {
-    const containerId = event.id ?? event.Actor?.ID;
-    if (!containerId) {
+    const containerEvent = toContainerEvent(event);
+    if (!containerEvent) {
       return false;
     }
 
-    switch (event.action) {
+    switch (containerEvent.action) {
       case "kill":
-        return this.setTransientState(containerId, "stopping");
+        return this.setTransientState(containerEvent.id, "stopping");
       case "die":
       case "stop":
       case "start":
       case "destroy":
-        return this.clearTransientState(containerId);
+        return this.clearTransientState(containerEvent.id);
       default:
         return false;
     }
@@ -135,6 +135,21 @@ export class DockerTreeStore {
       }
     }
   }
+}
+
+function toContainerEvent(event: DockerEvent): DockerContainerEvent | undefined {
+  const type = event.type ?? event.Type;
+  if (type && type !== "container") {
+    return undefined;
+  }
+
+  const id = event.id ?? event.ID ?? event.Actor?.ID;
+  const action = event.action ?? event.Action;
+  if (!id || !action) {
+    return undefined;
+  }
+
+  return { id, action };
 }
 
 export class DockerTreeProvider implements vscode.TreeDataProvider<DockerTreeItem> {

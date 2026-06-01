@@ -31,12 +31,20 @@ export interface DockerLogStream {
 
 export interface DockerEvent {
   readonly type?: string;
+  readonly Type?: string;
   readonly action?: string;
+  readonly Action?: string;
   readonly id?: string;
+  readonly ID?: string;
   readonly Actor?: {
     readonly ID?: string;
     readonly Attributes?: Record<string, string>;
   };
+}
+
+export interface DockerContainerEvent {
+  readonly id: string;
+  readonly action: string;
 }
 
 export interface DockerEventStream {
