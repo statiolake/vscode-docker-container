@@ -2,7 +2,7 @@
   "name": "vscode-docker-container",
   "displayName": "Docker Container Stacks",
   "description": "Manage Docker Compose stacks and containers from the VS Code UI side.",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "publisher": "statiolake",
   "license": "MIT",
   "repository": {
@@ -371,14 +371,17 @@
     "clean": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\"",
     "compile": "npm run clean && tsc -p ./",
     "package": "vsce package",
-    "publish": "vsce publish",
+    "publish": "npm run publish:vsce && npm run publish:ovsx",
     "watch": "tsc -watch -p ./",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "publish:vsce": "vsce publish",
+    "publish:ovsx": "ovsx publish"
   },
   "devDependencies": {
     "@types/node": "^25.0.0",
     "@types/vscode": "^1.105.0",
     "@vscode/vsce": "^3.7.1",
+    "ovsx": "^1.1.1",
     "typescript": "^6.0.0"
   }
 }
