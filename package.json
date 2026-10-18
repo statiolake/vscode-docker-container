@@ -2,7 +2,7 @@
   "name": "vscode-docker-container",
   "displayName": "Docker Container Stacks",
   "description": "Manage Docker Compose stacks and containers from the VS Code UI side.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "statiolake",
   "license": "MIT",
   "repository": {
