@@ -25,6 +25,7 @@
   "activationEvents": [
     "onView:dockerContainerStacksRunning",
     "onView:dockerContainerStacksInactive",
+    "onView:dockerContainerStacksResources",
     "onCommand:dockerContainerStacks.refresh",
     "onCommand:dockerContainerStacks.stack.copyName",
     "onCommand:dockerContainerStacks.stack.rebuild",
@@ -125,6 +126,50 @@
         "command": "dockerContainerStacks.openLogs",
         "title": "Open Logs",
         "icon": "$(output)"
+      },
+      {
+        "command": "dockerContainerStacks.system.prune",
+        "title": "System Prune",
+        "category": "Docker"
+      },
+      {
+        "command": "dockerContainerStacks.system.pruneAll",
+        "title": "System Prune -a",
+        "category": "Docker"
+      },
+      {
+        "command": "dockerContainerStacks.system.pruneVolumes",
+        "title": "System Prune --volumes",
+        "category": "Docker"
+      },
+      {
+        "command": "dockerContainerStacks.system.pruneAllVolumes",
+        "title": "System Prune -a --volumes",
+        "category": "Docker"
+      },
+      {
+        "command": "dockerContainerStacks.images.prune",
+        "title": "Prune"
+      },
+      {
+        "command": "dockerContainerStacks.images.pruneAll",
+        "title": "Prune -a"
+      },
+      {
+        "command": "dockerContainerStacks.volumes.prune",
+        "title": "Prune"
+      },
+      {
+        "command": "dockerContainerStacks.volumes.pruneAll",
+        "title": "Prune -a"
+      },
+      {
+        "command": "dockerContainerStacks.buildCache.prune",
+        "title": "Prune"
+      },
+      {
+        "command": "dockerContainerStacks.buildCache.pruneAll",
+        "title": "Prune -a"
       }
     ],
     "viewsContainers": {
@@ -145,6 +190,10 @@
         {
           "id": "dockerContainerStacksInactive",
           "name": "Exited / Created"
+        },
+        {
+          "id": "dockerContainerStacksResources",
+          "name": "Resources"
         }
       ]
     },
@@ -159,6 +208,31 @@
           "command": "dockerContainerStacks.refresh",
           "when": "view == dockerContainerStacksInactive",
           "group": "navigation"
+        },
+        {
+          "command": "dockerContainerStacks.refresh",
+          "when": "view == dockerContainerStacksResources",
+          "group": "navigation"
+        },
+        {
+          "command": "dockerContainerStacks.system.prune",
+          "when": "view == dockerContainerStacksResources",
+          "group": "1_prune@1"
+        },
+        {
+          "command": "dockerContainerStacks.system.pruneAll",
+          "when": "view == dockerContainerStacksResources",
+          "group": "1_prune@2"
+        },
+        {
+          "command": "dockerContainerStacks.system.pruneVolumes",
+          "when": "view == dockerContainerStacksResources",
+          "group": "1_prune@3"
+        },
+        {
+          "command": "dockerContainerStacks.system.pruneAllVolumes",
+          "when": "view == dockerContainerStacksResources",
+          "group": "1_prune@4"
         }
       ],
       "view/item/context": [
@@ -281,6 +355,36 @@
           "command": "dockerContainerStacks.container.executeBash",
           "when": "view == dockerContainerStacksRunning && viewItem =~ /^(composeContainerBuildable|composeContainer|dockerContainer)\\.running$/",
           "group": "2_utility@2"
+        },
+        {
+          "command": "dockerContainerStacks.images.prune",
+          "when": "view == dockerContainerStacksResources && viewItem == resourceSection.images",
+          "group": "1_prune@1"
+        },
+        {
+          "command": "dockerContainerStacks.images.pruneAll",
+          "when": "view == dockerContainerStacksResources && viewItem == resourceSection.images",
+          "group": "1_prune@2"
+        },
+        {
+          "command": "dockerContainerStacks.volumes.prune",
+          "when": "view == dockerContainerStacksResources && viewItem == resourceSection.volumes",
+          "group": "1_prune@1"
+        },
+        {
+          "command": "dockerContainerStacks.volumes.pruneAll",
+          "when": "view == dockerContainerStacksResources && viewItem == resourceSection.volumes",
+          "group": "1_prune@2"
+        },
+        {
+          "command": "dockerContainerStacks.buildCache.prune",
+          "when": "view == dockerContainerStacksResources && viewItem == resourceSection.buildCache",
+          "group": "1_prune@1"
+        },
+        {
+          "command": "dockerContainerStacks.buildCache.pruneAll",
+          "when": "view == dockerContainerStacksResources && viewItem == resourceSection.buildCache",
+          "group": "1_prune@2"
         }
       ],
       "commandPalette": [
@@ -346,6 +450,30 @@
         },
         {
           "command": "dockerContainerStacks.openLogs",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.images.prune",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.images.pruneAll",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.volumes.prune",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.volumes.pruneAll",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.buildCache.prune",
+          "when": "false"
+        },
+        {
+          "command": "dockerContainerStacks.buildCache.pruneAll",
           "when": "false"
         }
       ]

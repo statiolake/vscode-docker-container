@@ -18,6 +18,8 @@ That means it runs next to the VS Code client instead of inside a remote workspa
 - Stop, start, or restart individual containers.
 - Rebuild Compose stacks or Compose services when Docker Compose metadata is available.
 - Open container logs in a read-only editor document.
+- Show images, volumes, and build cache in a Resources view, sorted by size with per-section totals. Items a prune would remove are dimmed.
+- Run `docker image/volume/builder prune` from the section context menu, and `docker system prune` variants from the Resources view title menu.
 
 ## Remote-Side Containers
 

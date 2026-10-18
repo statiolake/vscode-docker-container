@@ -51,6 +51,73 @@ export interface DockerEventStream {
   dispose(): void;
 }
 
+export type ResourceKind = "images" | "volumes" | "buildCache";
+
+// inUse: no prune removes it. unused: removed by `prune --all`. dangling: removed by plain `prune`.
+export type ResourceUsage = "inUse" | "unused" | "dangling";
+
+export interface DockerResource {
+  readonly id: string;
+  readonly name: string;
+  readonly size: number | undefined;
+  readonly usage: ResourceUsage;
+  readonly details: readonly string[];
+}
+
+export interface ResourceSection {
+  readonly kind: ResourceKind;
+  readonly size: number;
+  readonly reclaimable: number;
+  readonly resources: readonly DockerResource[];
+}
+
+export type PruneTarget = ResourceKind | "system";
+
+export interface PruneOptions {
+  readonly all: boolean;
+  readonly volumes: boolean;
+}
+
+interface DockerDfSummary {
+  readonly Type: string;
+  readonly Size: string;
+  readonly Reclaimable: string;
+}
+
+interface DockerDfVerbose {
+  readonly Images?: readonly DockerDfImage[];
+  readonly Volumes?: readonly DockerDfVolume[];
+  readonly BuildCache?: readonly DockerDfBuildCache[];
+}
+
+interface DockerDfImage {
+  readonly ID: string;
+  readonly Repository: string;
+  readonly Tag: string;
+  readonly Containers: string;
+  readonly Size: string;
+  readonly SharedSize: string;
+  readonly UniqueSize: string;
+  readonly CreatedSince: string;
+}
+
+interface DockerDfVolume {
+  readonly Name: string;
+  readonly Driver: string;
+  readonly Labels: string;
+  readonly Links: string;
+  readonly Size: string;
+}
+
+interface DockerDfBuildCache {
+  readonly ID: string;
+  readonly CacheType: string;
+  readonly Description: string;
+  readonly InUse: string;
+  readonly Size: string;
+  readonly LastUsedSince: string;
+}
+
 interface DockerInspectContainer {
   readonly Id: string;
   readonly Name?: string;
@@ -182,11 +249,43 @@ export class DockerCli {
     };
   }
 
-  public streamContainerEvents(onEvent: (event: DockerEvent) => void, onError: (error: string) => void): DockerEventStream {
+  public async listResources(): Promise<readonly ResourceSection[]> {
+    const [summaryResult, detailResult] = await Promise.all([
+      this.exec(["system", "df", "--format", "{{json .}}"]),
+      this.exec(["system", "df", "--verbose", "--format", "{{json .}}"])
+    ]);
+    const summaries = parseJsonLines(summaryResult.stdout) as DockerDfSummary[];
+    const detail = JSON.parse(detailResult.stdout) as DockerDfVerbose;
+
+    return [
+      toResourceSection("images", summaries, (detail.Images ?? []).map(toImageResource)),
+      toResourceSection("volumes", summaries, (detail.Volumes ?? []).map(toVolumeResource)),
+      toResourceSection("buildCache", summaries, (detail.BuildCache ?? []).map(toBuildCacheResource))
+    ];
+  }
+
+  public async prune(target: PruneTarget, options: PruneOptions): Promise<string | undefined> {
+    const args = [pruneCommand(target), "prune", "--force"];
+    if (options.all) {
+      args.push("--all");
+    }
+    if (options.volumes) {
+      args.push("--volumes");
+    }
+
+    const result = await this.exec(args);
+    return reclaimedSpace(result.stdout);
+  }
+
+  public streamEvents(onEvent: (event: DockerEvent) => void, onError: (error: string) => void): DockerEventStream {
     const child = spawn(this.dockerPath, [
       "events",
       "--filter",
       "type=container",
+      "--filter",
+      "type=image",
+      "--filter",
+      "type=volume",
       "--format",
       "{{json .}}"
     ]);
@@ -390,6 +489,124 @@ export function isStableContainerState(container: DockerContainer): boolean {
     || container.state === "created"
     || container.state === "paused"
     || container.state === "dead";
+}
+
+const summaryTypes: Record<ResourceKind, string> = {
+  images: "Images",
+  volumes: "Local Volumes",
+  buildCache: "Build Cache"
+};
+
+function toResourceSection(kind: ResourceKind, summaries: readonly DockerDfSummary[], resources: readonly DockerResource[]): ResourceSection {
+  const summary = summaries.find((candidate) => candidate.Type === summaryTypes[kind]);
+  if (!summary) {
+    throw new Error(`docker system df did not report '${summaryTypes[kind]}'.`);
+  }
+
+  return {
+    kind,
+    size: parseSize(summary.Size),
+    // Reclaimable is reported as e.g. "1.2GB (42%)".
+    reclaimable: parseSize(summary.Reclaimable.replace(/\s*\(.*\)$/, "")),
+    resources: [...resources].sort((left, right) => (right.size ?? -1) - (left.size ?? -1))
+  };
+}
+
+function toImageResource(image: DockerDfImage): DockerResource {
+  const untagged = image.Repository === "<none>";
+  const shortId = image.ID.replace(/^sha256:/, "").slice(0, 12);
+  const containers = Number(image.Containers);
+
+  return {
+    id: image.ID,
+    name: untagged ? shortId : `${image.Repository}:${image.Tag}`,
+    size: parseSize(image.Size),
+    usage: containers > 0 ? "inUse" : untagged ? "dangling" : "unused",
+    details: [
+      `ID: ${shortId}`,
+      `Containers: ${image.Containers}`,
+      `Unique size: ${image.UniqueSize}`,
+      `Shared size: ${image.SharedSize}`,
+      `Created: ${image.CreatedSince}`
+    ]
+  };
+}
+
+function toVolumeResource(volume: DockerDfVolume): DockerResource {
+  const anonymous = /(^|,)com\.docker\.volume\.anonymous=/.test(volume.Labels);
+  const links = Number(volume.Links);
+
+  return {
+    id: volume.Name,
+    name: volume.Name,
+    // Non-local drivers do not report a size.
+    size: volume.Size === "N/A" ? undefined : parseSize(volume.Size),
+    usage: links > 0 ? "inUse" : anonymous ? "dangling" : "unused",
+    details: [
+      `Driver: ${volume.Driver}`,
+      `Containers: ${volume.Links}`,
+      anonymous ? "Anonymous volume" : "Named volume"
+    ]
+  };
+}
+
+function toBuildCacheResource(cache: DockerDfBuildCache): DockerResource {
+  return {
+    id: cache.ID,
+    name: cache.Description || cache.ID,
+    size: parseSize(cache.Size),
+    usage: cache.InUse === "true" ? "inUse" : "unused",
+    details: [
+      `ID: ${cache.ID}`,
+      `Type: ${cache.CacheType}`,
+      `Last used: ${cache.LastUsedSince}`
+    ]
+  };
+}
+
+const sizeUnits: Record<string, number> = {
+  B: 1,
+  kB: 1e3,
+  MB: 1e6,
+  GB: 1e9,
+  TB: 1e12,
+  PB: 1e15
+};
+
+// Parses docker's human-readable decimal sizes such as "704MB" or "72.9kB".
+function parseSize(value: string): number {
+  const match = /^([\d.]+)\s*([a-zA-Z]+)$/.exec(value.trim());
+  const multiplier = match ? sizeUnits[match[2]] : undefined;
+  if (!match || multiplier === undefined) {
+    throw new Error(`Unexpected size format from docker: '${value}'`);
+  }
+  return Number(match[1]) * multiplier;
+}
+
+function parseJsonLines(stdout: string): unknown[] {
+  return stdout
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as unknown);
+}
+
+function pruneCommand(target: PruneTarget): string {
+  switch (target) {
+    case "images":
+      return "image";
+    case "volumes":
+      return "volume";
+    case "buildCache":
+      return "builder";
+    case "system":
+      return "system";
+  }
+}
+
+// `builder prune` prints "Total: X" while the others print "Total reclaimed space: X".
+// Some docker versions print nothing when there was nothing to remove.
+function reclaimedSpace(stdout: string): string | undefined {
+  return /Total(?: reclaimed space)?:\s*(\S+)/.exec(stdout)?.[1];
 }
 
 function isExecError(error: unknown): error is { readonly stdout?: string; readonly stderr?: string; readonly message: string } {

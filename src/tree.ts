@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { BusySet } from "./busy";
 import { ComposeStack, DockerCli, DockerContainer, DockerContainerEvent, DockerEvent, canBuildCompose, canBuildComposeContainer, canRunComposeProject, isStableContainerState } from "./dockerCli";
 
 export type DockerTreeItem = ComposeStackItem | ContainerItem;
@@ -6,11 +7,10 @@ export type ContainerStateFilter = "running" | "inactive";
 
 export class DockerTreeStore {
   private stacks: readonly ComposeStack[] = [];
-  private readonly busyItems = new Set<string>();
   private readonly transientStates = new Map<string, string>();
   private loaded = false;
 
-  public constructor(private readonly docker: DockerCli) {}
+  public constructor(private readonly docker: DockerCli, private readonly busy: BusySet) {}
 
   public async ensureLoaded(): Promise<void> {
     if (!this.loaded) {
@@ -59,17 +59,8 @@ export class DockerTreeStore {
     });
   }
 
-  public setBusy(key: string, busy: boolean): void {
-    if (busy) {
-      this.busyItems.add(key);
-      return;
-    }
-
-    this.busyItems.delete(key);
-  }
-
   public isBusy(key: string): boolean {
-    return this.busyItems.has(key);
+    return this.busy.has(key);
   }
 
   public applyEvent(event: DockerEvent): boolean {
